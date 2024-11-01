@@ -39,92 +39,11 @@ class MyHomePage extends ConsumerStatefulWidget {
 }
 
 class _MyHomePageState extends ConsumerState<MyHomePage> {
-  static int nowPlusThreeHours() =>
-      DateTime.now()
-          .add(
-            const Duration(
-              hours: 3,
-            ),
-          )
-          .millisecondsSinceEpoch ~/
-      1000;
-
   @override
   void initState() {
     super.initState();
 
-    _setProviderStatesFromPersistedState();
-  }
-
-  Future<void> _cleanSession() async {
-    print("cleaning session ${StackTrace.current}");
-    final storage = await SharedPreferences.getInstance();
-    final wcService = ref.read(w3mServiceProvider);
-
-    storage.remove('session');
-    storage.remove('walletType');
-    storage.remove('userSession');
-    wcService?.disconnect();
-    // await BackendAuth.initGuestSession().timeout(const Duration(
-    //   seconds: 8,
-    // ));
-  }
-
-  Future<void> _setProviderStatesFromPersistedState() async {
-    try {
-      await Future.wait(
-        [
-          initWcClient(ref, context),
-          // setupWeb3Auth(),
-        ],
-      );
-    } catch (e, s) {
-      print(e);
-      print(s);
-      // await Sentry.captureException(
-      //   e,
-      //   stackTrace: s,
-      // );
-      // FlutterNativeSplash.remove();
-    }
-
-    final storage = await SharedPreferences.getInstance();
-
-    try {
-      final wcService = ref.read(w3mServiceProvider);
-
-      final storedWcSession = storage.getString('session');
-
-      //check if a session is stored
-      if (storedWcSession == null) {
-        _cleanSession();
-        throw Exception('No session stored');
-      }
-
-      final wcSession =
-          ReownAppKitModalSession.fromMap(jsonDecode(storedWcSession));
-
-      if ((wcSession.expiry ?? 0) <= nowPlusThreeHours()
-          // && backendSession.expire ?? 0 <= nowPlusThreeHours()
-          ) {
-        _cleanSession();
-        throw Exception('Session expired');
-      }
-
-      ref.read(wcSessionProvider.notifier).state = wcSession;
-      // ref.read(walletTypeProvider.notifier).state = walletType;
-      // ref.read(userSessionProvider.notifier).state = backendSession;
-      // Backend.recreateServices(backendSession.jwt.raw);
-      // ref.read(websocketProvider.notifier).init();
-    } catch (e, st) {
-      // Sentry.captureException(
-      //   e,
-      //   stackTrace: st,
-      // );
-      _cleanSession();
-    } finally {
-      // FlutterNativeSplash.remove();
-    }
+    initWcClient(ref, context);
   }
 
   @override
@@ -143,7 +62,8 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
             if (w3mService != null)
               AppKitModalConnectButton(
                 appKit: w3mService,
-              )
+              ),
+            Text(session?.address ?? "No session"),
           ],
         ),
       ),
@@ -156,7 +76,7 @@ final w3mServiceProvider = StateProvider<ReownAppKitModal?>((ref) {
 });
 
 final wcSessionProvider = StateProvider<ReownAppKitModalSession?>((ref) {
-  return null;
+  return ref.watch(w3mServiceProvider)?.session;
 });
 
 Future<ReownAppKitModal> initWcClient(
@@ -189,16 +109,7 @@ Future<ReownAppKitModal> initWcClient(
 void Function(ModalConnect?) wrapOnSessionConnect(
     WidgetRef ref, BuildContext context) {
   return (ModalConnect? args) {
-    //set session and wallet type provider
     ref.read(wcSessionProvider.notifier).state = args?.session;
-
-    //store session and wallet type
-    final storage = SharedPreferences.getInstance();
-    final session = jsonEncode(args?.session.toMap());
-    storage.then((s) {
-      s.setString('session', session);
-      print(s);
-    });
   };
 }
 
@@ -222,17 +133,10 @@ void Function(SessionExpire?) wrapOnSessionExpire(WidgetRef ref) {
 }
 
 void Function(SessionEvent?) wrapOnSessionEvent(WidgetRef ref) {
-  return (SessionEvent? args) {
-    // talker.log('Session event: ${args?.chainId}');
-  };
+  return (SessionEvent? args) {};
 }
 
+// WHY IS THIS BEING CALLED AFTER CALLING THE .init() METHOD?
 void onSessionDisconnect(ModalDisconnect? args, WidgetRef ref) {
-  //remove session and wallet type
-  final storage = SharedPreferences.getInstance();
-  // storage.then((value) => value.remove('session'));
-  // storage.then((value) => value.remove('walletType'));
-  // storage.then((value) => value.remove('userSession'));
-
   ref.read(wcSessionProvider.notifier).state = null;
 }
