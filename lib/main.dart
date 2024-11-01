@@ -53,10 +53,8 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
   void initState() {
     super.initState();
 
-
     _setProviderStatesFromPersistedState();
   }
-
 
   Future<void> _cleanSession() async {
     print("cleaning session ${StackTrace.current}");
@@ -71,6 +69,7 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
     //   seconds: 8,
     // ));
   }
+
   Future<void> _setProviderStatesFromPersistedState() async {
     try {
       await Future.wait(
@@ -97,25 +96,26 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
       final storedWcSession = storage.getString('session');
 
       //check if a session is stored
-      if (storedWcSession != null) {
-        final wcSession =
-            ReownAppKitModalSession.fromMap(jsonDecode(storedWcSession));
-
-
-        if ((wcSession.expiry ?? 0) > nowPlusThreeHours()
-            ) {
-          ref.read(wcSessionProvider.notifier).state = wcSession;
-          // ref.read(walletTypeProvider.notifier).state = walletType;
-          // ref.read(userSessionProvider.notifier).state = backendSession;
-          // Backend.recreateServices(backendSession.jwt.raw);
-          // ref.read(websocketProvider.notifier).init();
-        } else {
-          _cleanSession();
-
-        }
-      } else {
+      if (storedWcSession == null) {
         _cleanSession();
+        throw Exception('No session stored');
       }
+
+      final wcSession =
+          ReownAppKitModalSession.fromMap(jsonDecode(storedWcSession));
+
+      if ((wcSession.expiry ?? 0) <= nowPlusThreeHours()
+          // && backendSession.expire ?? 0 <= nowPlusThreeHours()
+          ) {
+        _cleanSession();
+        throw Exception('Session expired');
+      }
+
+      ref.read(wcSessionProvider.notifier).state = wcSession;
+      // ref.read(walletTypeProvider.notifier).state = walletType;
+      // ref.read(userSessionProvider.notifier).state = backendSession;
+      // Backend.recreateServices(backendSession.jwt.raw);
+      // ref.read(websocketProvider.notifier).init();
     } catch (e, st) {
       // Sentry.captureException(
       //   e,
@@ -146,13 +146,6 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
               )
           ],
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          ref.read(w3mServiceProvider)?.openModalView();
-        },
-        tooltip: 'Connect',
-        child: const Icon(Icons.add),
       ),
     );
   }
